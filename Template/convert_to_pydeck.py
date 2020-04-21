@@ -20,7 +20,7 @@ def extract_ee_script(lines):
     """Extract EE script from python file
     """
     # The nth section used for python script
-    nSection = [ind for ind, x in enumerate(SECTIONS) if x == 'py_script'][0]
+    n_section = [ind for ind, x in enumerate(SECTIONS) if x == 'py_script'][0]
 
     # Find indices of blocks
     blocks_idx = [
@@ -28,7 +28,7 @@ def extract_ee_script(lines):
     assert len(blocks_idx) == len(SECTIONS), 'wrong number of blocks'
 
     # Find start, end indices of python script block
-    start_idx, end_idx = blocks_idx[nSection:nSection + 2]
+    start_idx, end_idx = blocks_idx[n_section:n_section + 2]
 
     return lines[start_idx:end_idx]
 
