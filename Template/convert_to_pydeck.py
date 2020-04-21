@@ -1,8 +1,7 @@
+import json
 from io import BytesIO
+from pathlib import Path
 from tokenize import tokenize
-
-# with open('../Visualization/hillshade.py') as f:
-#     lines = f.readlines()
 
 SECTIONS = [
     'md_buttons',
@@ -15,6 +14,44 @@ SECTIONS = [
     'md_display',
     'py_display', ]
 
+def main(path, template_path):
+    path = '../Visualization/hillshade.py'
+    path = Path(path)
+
+    with open(path) as f:
+        lines = f.readlines()
+
+    ee_script_block = extract_ee_script(lines)
+    pydeck_block = set_result_as_pydeck_object(ee_script_block)
+
+    # stringify to put in JSON
+    pydeck_block = [json.dumps(l) for l in pydeck_block]
+
+    # Add ,\n to each line
+    pydeck_block = [l + ',\n' for l in pydeck_block]
+
+    # Remove , from last line
+    pydeck_block[-1] = pydeck_block[-1][:-2] + '\n'
+
+    # Load Pydeck notebook template
+    with open(template_path) as f:
+        template_lines = f.readlines()
+
+    # Find index of line to replace
+    replace_ind = [ind for ind, x in enumerate(template_lines) if 'REPLACE_WITH_CUSTOM_EE_SCRIPT' in x][0]
+
+    # Remove this template line
+    template_lines.pop(replace_ind)
+
+    # Insert into list
+    # Ref: https://stackoverflow.com/a/3748092
+    insert_lines = ['"source": [\n', *pydeck_block, ']\n']
+    template_lines[replace_ind:replace_ind] = insert_lines
+
+    # Create path for notebook in same directory
+    out_path = path.parents[0] / (path.stem + '.ipynb')
+    with open(out_path, 'w') as f:
+        f.writelines(template_lines)
 
 def extract_ee_script(lines):
     """Extract EE script from python file
@@ -87,9 +124,15 @@ def set_result_as_pydeck_object(lines):
     add_layer_params = ['pydeck_eeObject', 'pydeck_visParams']
     for param, value in zip(add_layer_params, add_layer):
         if value:
-            out_lines.append(f'{param} = {value}')
+            out_lines.append(f'{param} = {value}\n')
 
     return out_lines
+
+
+def stringify(lines):
+    """Wrap lines in double quotes, to allow to be saved in JSON
+    """
+    return [json.dumps(l) for l in lines]
 
 
 def tokenize_line(line):
@@ -101,4 +144,5 @@ def tokenize_line(line):
     return list(tokenize(file.readline))
 
 
-# line = "Map.addLayer(alosChili, alosChiliVis, 'ALOS CHILI')"
+if __name__ == '__main__':
+    main()
