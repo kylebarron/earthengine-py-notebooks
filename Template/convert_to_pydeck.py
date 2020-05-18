@@ -53,6 +53,7 @@ def main(path, template_path):
     with open(out_path, 'w') as f:
         f.writelines(template_lines)
 
+
 def extract_ee_script(lines):
     """Extract EE script from python file
     """
@@ -78,29 +79,72 @@ def set_result_as_pydeck_object(lines):
 
     """
     out_lines = []
-    added_layers = []
 
     for line in lines:
         stripped = line.lower().strip()
         if not stripped.startswith('map'):
             out_lines.append(line)
             continue
-        else if stripped.startswith('map.addlayer'):
+
+        if stripped.startswith('map.addlayer'):
             line = handle_add_layer(line)
+            out_lines.append(line)
+            continue
+
+        if stripped.startswith('map.setcenter'):
+            line = handle_set_center(line)
             out_lines.append(line)
             continue
 
     return out_lines
 
-def handle_add_layer(line):
-    """Convert Map.addLayer to EarthEngineLayer creation
-    """
-    tokens = tokenize_line(line)
 
-    # https://developers.google.com/earth-engine/api_docs#mapaddlayer
+def handle_add_layer(line):
+    """Convert Map.addLayer to EarthEngineLayer
+    """
+    # https://geemap.readthedocs.io/en/latest/readme.html#usage
     # Args are: eeObject, visParams, name, shown, opacity
-    add_layer_args = ['', '', '', '', '']
-    add_layer_args_counter = 0
+    add_layer_args = tokenize_command(line, 5)
+    ee_object, vis_params, _, _, opacity = add_layer_args
+
+    kwargs = []
+    if ee_object:
+        kwargs.append(f'ee_object={ee_object}')
+
+    if vis_params:
+        kwargs.append(f'vis_params={vis_params}')
+
+    if opacity:
+        kwargs.append(f'opacity={opacity}')
+
+    return f"ee_layers.append(EarthEngineLayer({', '.join(kwargs)}))\n"
+
+
+def handle_set_center(line):
+    """Convert Map.setCenter to pydeck.ViewState
+    """
+    # https://geemap.readthedocs.io/en/latest/readme.html#usage
+    # Args are: lon, lat, zoom
+    set_center_args = tokenize_command(line, 3)
+    longitude, latitude, zoom = set_center_args
+
+    kwargs = []
+    if longitude:
+        kwargs.append(f'longitude={longitude}')
+
+    if latitude:
+        kwargs.append(f'latitude={latitude}')
+
+    if zoom:
+        kwargs.append(f'zoom={zoom}')
+
+    return f"view_state = pdk.ViewState({', '.join(kwargs)})\n"
+
+
+def tokenize_command(line, n_args):
+    tokens = tokenize_line(line)
+    args = [''] * n_args
+    args_counter = 0
     depth = 0
     for token in tokens:
         # Haven't entered function yet
@@ -109,38 +153,25 @@ def handle_add_layer(line):
 
         if token.string == '(':
             if depth > 0:
-                add_layer_args[add_layer_args_counter] += token.string
+                args[args_counter] += token.string
 
             depth += 1
             continue
 
         if token.string == ')':
             if depth > 1:
-                add_layer_args[add_layer_args_counter] += token.string
+                args[args_counter] += token.string
 
             depth -= 1
             continue
 
         if depth == 1 and token.string == ',':
-            add_layer_args_counter += 1
+            args_counter += 1
             continue
 
-        add_layer_args[add_layer_args_counter] += token.string
+        args[args_counter] += token.string
 
-    ee_object, vis_params, _, _, opacity = add_layer_args
-    s = 'ee_layers.append(EarthEngineLayer('
-    if ee_object:
-        s += ee_object
-
-    if vis_params:
-        s += ', ' + vis_params
-
-    if opacity:
-        s += ', ' + f'opacity={opacity}'
-
-    s += '))\n'
-    return s
-
+    return args
 
 
 def stringify(lines):
