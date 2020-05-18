@@ -27,11 +27,20 @@ SECTIONS = [
 @click.argument('files', nargs=-1)
 def main(files, template_path):
     for path in files:
-        convert_file(path, template_path)
+        try:
+            convert_file(path, template_path)
+        except Exception as e:
+            print(f'Failed on file: {path}')
+            print(e)
 
 
 def convert_file(path, template_path):
-    path = '../Visualization/hillshade.py'
+    """Convert python script to Jupyter Notebook
+
+    Args:
+        - path: Path to _Python_ file
+        - template_path: Path to Jupyter Notebook template
+    """
     path = Path(path)
 
     with open(path) as f:
@@ -54,8 +63,7 @@ def convert_file(path, template_path):
 
     # Insert into list
     # Ref: https://stackoverflow.com/a/3748092
-    insert_lines = ['"source": [\n', *pydeck_block, ']\n']
-    template_lines[replace_ind:replace_ind] = insert_lines
+    template_lines[replace_ind:replace_ind] = pydeck_block
 
     # Create path for notebook in same directory
     out_path = path.parents[0] / (path.stem + '.ipynb')
@@ -170,14 +178,14 @@ def tokenize_command(line, n_args):
         if depth == 0 and not (token.type == 53 and token.string == '('):
             continue
 
-        if token.string == '(':
+        if token.string in ['(', '{', '[']:
             if depth > 0:
                 args[args_counter] += token.string
 
             depth += 1
             continue
 
-        if token.string == ')':
+        if token.string in [')', '}', ']']:
             if depth > 1:
                 args[args_counter] += token.string
 
