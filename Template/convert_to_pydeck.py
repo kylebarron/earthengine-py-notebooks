@@ -12,7 +12,7 @@ SECTIONS = [
     'md_script',
     'py_script',
     'md_display',
-    'py_display', ]
+    'py_display']
 
 def main(path, template_path):
     path = '../Visualization/hillshade.py'
@@ -119,12 +119,21 @@ def set_result_as_pydeck_object(lines):
 
         added_layers.append(add_layer_args)
 
-    # Right now only deal with a single Map.addLayer
-    add_layer = added_layers[0]
-    add_layer_params = ['pydeck_eeObject', 'pydeck_visParams']
-    for param, value in zip(add_layer_params, add_layer):
-        if value:
-            out_lines.append(f'{param} = {value}\n')
+    # For each Map.addLayer, convert that into an EarthEngineLayer
+    for add_layer in added_layers:
+        ee_object, vis_params, _, _, opacity = add_layer
+        s = 'ee_layers.append(EarthEngineLayer('
+        if ee_object:
+            s += ee_object
+
+        if vis_params:
+            s += ', ' + vis_params
+
+        if opacity:
+            s += ', ' + f'opacity={opacity}'
+
+        s += '))\n'
+        out_lines.append(s)
 
     return out_lines
 
