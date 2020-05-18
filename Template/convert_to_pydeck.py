@@ -81,61 +81,66 @@ def set_result_as_pydeck_object(lines):
     added_layers = []
 
     for line in lines:
-        if not line.lower().strip().startswith('map'):
+        stripped = line.lower().strip()
+        if not stripped.startswith('map'):
+            out_lines.append(line)
+            continue
+        else if stripped.startswith('map.addlayer'):
+            line = handle_add_layer(line)
             out_lines.append(line)
             continue
 
-        tokens = tokenize_line(line)
-
-        # https://developers.google.com/earth-engine/api_docs#mapaddlayer
-        # Args are: eeObject, visParams, name, shown, opacity
-        add_layer_args = ['', '', '', '', '']
-        add_layer_args_counter = 0
-        depth = 0
-        for token in tokens:
-            # Haven't entered function yet
-            if depth == 0 and not (token.type == 53 and token.string == '('):
-                continue
-
-            if token.string == '(':
-                if depth > 0:
-                    add_layer_args[add_layer_args_counter] += token.string
-
-                depth += 1
-                continue
-
-            if token.string == ')':
-                if depth > 1:
-                    add_layer_args[add_layer_args_counter] += token.string
-
-                depth -= 1
-                continue
-
-            if depth == 1 and token.string == ',':
-                add_layer_args_counter += 1
-                continue
-
-            add_layer_args[add_layer_args_counter] += token.string
-
-        added_layers.append(add_layer_args)
-
-    # For each Map.addLayer, convert that into an EarthEngineLayer
-    for add_layer in added_layers:
-        ee_object, vis_params, _, _, opacity = add_layer
-        s = 'ee_layers.append(EarthEngineLayer('
-        if ee_object:
-            s += ee_object
-
-        if vis_params:
-            s += ', ' + vis_params
-
-        if opacity:
-            s += ', ' + f'opacity={opacity}'
-
-        s += '))\n'
-        out_lines.append(s)
-
     return out_lines
+
+def handle_add_layer(line):
+    """Convert Map.addLayer to EarthEngineLayer creation
+    """
+    tokens = tokenize_line(line)
+
+    # https://developers.google.com/earth-engine/api_docs#mapaddlayer
+    # Args are: eeObject, visParams, name, shown, opacity
+    add_layer_args = ['', '', '', '', '']
+    add_layer_args_counter = 0
+    depth = 0
+    for token in tokens:
+        # Haven't entered function yet
+        if depth == 0 and not (token.type == 53 and token.string == '('):
+            continue
+
+        if token.string == '(':
+            if depth > 0:
+                add_layer_args[add_layer_args_counter] += token.string
+
+            depth += 1
+            continue
+
+        if token.string == ')':
+            if depth > 1:
+                add_layer_args[add_layer_args_counter] += token.string
+
+            depth -= 1
+            continue
+
+        if depth == 1 and token.string == ',':
+            add_layer_args_counter += 1
+            continue
+
+        add_layer_args[add_layer_args_counter] += token.string
+
+    ee_object, vis_params, _, _, opacity = add_layer_args
+    s = 'ee_layers.append(EarthEngineLayer('
+    if ee_object:
+        s += ee_object
+
+    if vis_params:
+        s += ', ' + vis_params
+
+    if opacity:
+        s += ', ' + f'opacity={opacity}'
+
+    s += '))\n'
+    return s
+
 
 
 def stringify(lines):
