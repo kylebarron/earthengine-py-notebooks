@@ -3,6 +3,8 @@ from io import BytesIO
 from pathlib import Path
 from tokenize import tokenize
 
+import click
+
 SECTIONS = [
     'md_buttons',
     'md_install',
@@ -12,9 +14,23 @@ SECTIONS = [
     'md_script',
     'py_script',
     'md_display',
-    'py_display']
+    'py_display', ]
 
-def main(path, template_path):
+
+@click.command()
+@click.option(
+    '-t',
+    '--template-path',
+    type=click.Path(exists=True, readable=True),
+    required=True,
+    help='Path to pydeck Jupyter Notebook template.')
+@click.argument('files', nargs=-1)
+def main(files, template_path):
+    for path in files:
+        convert_file(path, template_path)
+
+
+def convert_file(path, template_path):
     path = '../Visualization/hillshade.py'
     path = Path(path)
 
@@ -22,23 +38,16 @@ def main(path, template_path):
         lines = f.readlines()
 
     ee_script_block = extract_ee_script(lines)
-    pydeck_block = set_result_as_pydeck_object(ee_script_block)
-
-    # stringify to put in JSON
-    pydeck_block = [json.dumps(l) for l in pydeck_block]
-
-    # Add ,\n to each line
-    pydeck_block = [l + ',\n' for l in pydeck_block]
-
-    # Remove , from last line
-    pydeck_block[-1] = pydeck_block[-1][:-2] + '\n'
+    pydeck_block = convert_pydeck_block(ee_script_block)
 
     # Load Pydeck notebook template
     with open(template_path) as f:
         template_lines = f.readlines()
 
     # Find index of line to replace
-    replace_ind = [ind for ind, x in enumerate(template_lines) if 'REPLACE_WITH_CUSTOM_EE_SCRIPT' in x][0]
+    replace_ind = [
+        ind for ind, x in enumerate(template_lines)
+        if 'REPLACE_WITH_CUSTOM_EE_SCRIPT' in x][0]
 
     # Remove this template line
     template_lines.pop(replace_ind)
@@ -61,6 +70,7 @@ def extract_ee_script(lines):
     n_section = [ind for ind, x in enumerate(SECTIONS) if x == 'py_script'][0]
 
     # Find indices of blocks
+    # Each block starts with `# %%`
     blocks_idx = [
         ind for ind, x in enumerate(lines) if x.strip().startswith('# %')]
     assert len(blocks_idx) == len(SECTIONS), 'wrong number of blocks'
@@ -71,7 +81,7 @@ def extract_ee_script(lines):
     return lines[start_idx:end_idx]
 
 
-def set_result_as_pydeck_object(lines):
+def convert_pydeck_block(lines):
     """
 
     - Remove any `Map.setCenter` commands (todo in future: parse?)
@@ -95,6 +105,15 @@ def set_result_as_pydeck_object(lines):
             line = handle_set_center(line)
             out_lines.append(line)
             continue
+
+    # stringify to put in JSON
+    out_lines = [json.dumps(l) for l in out_lines]
+
+    # Add ,\n to each line
+    out_lines = [l + ',\n' for l in out_lines]
+
+    # Remove , from last line
+    out_lines[-1] = out_lines[-1][:-2] + '\n'
 
     return out_lines
 
